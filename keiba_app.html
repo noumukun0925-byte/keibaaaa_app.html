@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>競馬予想システム</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #0f0f13;
+  --bg2: #17171e;
+  --bg3: #1e1e28;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f0f0f5;
+  --text2: #9090a8;
+  --text3: #5a5a72;
+  --gold: #f0c040;
+  --gold2: #c8960a;
+  --blue: #4a8fff;
+  --blue2: #1a5fcc;
+  --green: #3dcc7e;
+  --red: #ff5a5a;
+  --purple: #9b7aff;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding-bottom: 80px;
+}
+
+/* Header */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header-title { font-size: 16px; font-weight: 700; letter-spacing: .02em; }
+.header-title span { color: var(--gold); }
+.header-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.header-btns { display: flex; gap: 8px; }
+
+/* Bottom Nav */
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  z-index: 100;
+}
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px;
+  border: none;
+  background: none;
+  color: var(--text3);
+  font-size: 10px;
+  font-family: 'Noto Sans JP', sans-serif;
+  cursor: pointer;
+  transition: color .15s;
+}
+.nav-btn.active { color: var(--gold); }
+.nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+
+/* Pages */
+.page { display: none; padding: 16px; }
+.page.active { display: block; }
+
+/* Race info bar */
+.race-bar {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.race-field label { font-size: 10px; color: var(--text2); display: block; margin-bottom: 4px; }
+.race-field input, .race-field select {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  padding: 7px 10px;
+}
+.race-field select { appearance: none; }
+
+/* Horse selector */
+.horse-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.horse-selector select {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 9px 12px;
+  appearance: none;
+}
+.icon-btn {
+  width: 38px; height: 38px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* Check section card */
+.check-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.check-card-header {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.check-card-title { font-size: 13px; font-weight: 700; }
+.check-card-score { font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 500; }
+.score-bar-wrap { padding: 8px 14px 0; }
+.score-bar {
+  height: 4px;
+  background: rgba(255,255,255,.06);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.score-fill { height: 100%; border-radius: 2px; transition: width .35s cubic-bezier(.4,0,.2,1); }
+
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .1s;
+  -webkit-user-select: none;
+}
+.check-item:last-child { border-bottom: none; }
+.check-item:active { background: rgba(255,255,255,.03); }
+.check-box {
+  width: 22px; height: 22px;
+  min-width: 22px;
+  border: 1.5px solid var(--border2);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+  margin-top: 1px;
+}
+.check-box.on { border-color: transparent; }
+.check-box svg { width: 13px; height: 13px; stroke: white; stroke-width: 2.5; fill: none; opacity: 0; transition: opacity .15s; }
+.check-box.on svg { opacity: 1; }
+.check-text { flex: 1; }
+.check-label { font-size: 13px; line-height: 1.5; }
+.check-hint { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.check-pts { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text2); min-width: 36px; text-align: right; margin-top: 2px; }
+
+/* Total result card */
+.total-card {
+  background: linear-gradient(135deg, var(--bg3) 0%, #1a1a26 100%);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.total-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 42px;
+  font-weight: 500;
+  line-height: 1;
+  min-width: 90px;
+}
+.total-bar-wrap { flex: 1; }
+.total-bar { height: 6px; background: rgba(255,255,255,.06); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+.total-fill { height: 100%; border-radius: 3px; background: var(--gold); transition: width .4s; }
+.judge-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.apply-btn {
+  width: 100%;
+  padding: 13px;
+  border-radius: var(--radius);
+  border: none;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--gold);
+  color: #0f0f13;
+  margin-bottom: 14px;
+  transition: transform .1s, opacity .1s;
+}
+.apply-btn:active { transform: scale(.98); opacity: .85; }
+
+/* List page */
+.horse-list-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.hli-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.hli-num {
+  width: 28px; height: 28px;
+  background: var(--bg3);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+.hli-name input {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border2);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  width: 100%;
+  padding: 2px 0;
+}
+.hli-total {
+  font-family: 'DM Mono', monospace;
+  font-size: 20px;
+  font-weight: 500;
+  margin-left: auto;
+}
+.hli-scores {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+}
+.hli-score-item label { font-size: 9px; color: var(--text3); display: block; margin-bottom: 3px; text-align: center; }
+.hli-score-item input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  padding: 5px 2px;
+  text-align: center;
+}
+
+/* Result page */
+.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.metric-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.metric-lbl { font-size: 10px; color: var(--text2); margin-bottom: 4px; }
+.metric-val { font-family: 'DM Mono', monospace; font-size: 22px; font-weight: 500; }
+.metric-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.chart-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.chart-title { font-size: 12px; color: var(--text2); margin-bottom: 12px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; }
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.rank-row:last-child { border-bottom: none; }
+.rank-num { font-family: 'DM Mono', monospace; font-size: 16px; font-weight: 500; min-width: 24px; text-align: center; }
+.rank-num.r1 { color: var(--gold); }
+.rank-num.r2 { color: var(--text2); }
+.rank-num.r3 { color: #c07040; }
+.rank-name { flex: 1; font-weight: 500; }
+.rank-score { font-family: 'DM Mono', monospace; font-size: 14px; color: var(--text2); }
+
+/* Util */
+.section-hdr { font-size: 11px; color: var(--text3); font-weight: 500; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; margin-top: 4px; }
+.clear-btn {
+  width: 100%;
+  padding: 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,90,90,.3);
+  background: rgba(255,90,90,.07);
+  color: var(--red);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.toast {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--green);
+  color: #0f0f13;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 20px;
+  border-radius: 20px;
+  opacity: 0;
+  transition: all .3s;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 200;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">🏇 <span>競馬</span>予想システム</div>
+    <div class="header-sub" id="headerSub">レース未設定</div>
+  </div>
+</div>
+
+<!-- Pages -->
+<div class="page active" id="page-check">
+  <div class="race-bar">
+    <div class="race-field"><label>レース名</label><input type="text" id="raceName" placeholder="東京11R" oninput="updateHeader()"></div>
+    <div class="race-field"><label>距離</label><input type="text" id="raceDist" placeholder="1600m" oninput="updateHeader()"></div>
+    <div class="race-field"><label>馬場</label>
+      <select id="raceTrack"><option>良</option><option>稍重</option><option>重</option><option>不良</option></select>
+    </div>
+    <div class="race-field"><label>開催日</label><input type="text" id="raceDate" placeholder="5/7"></div>
+  </div>
+
+  <div class="horse-selector">
+    <button class="icon-btn" onclick="prevHorse()">&#8249;</button>
+    <select id="checkSel" onchange="currentIdx=+this.value;renderCheck()"></select>
+    <button class="icon-btn" onclick="nextHorse()">&#8250;</button>
+  </div>
+
+  <div class="total-card">
+    <div>
+      <div style="font-size:10px;color:var(--text3);margin-bottom:4px">総合指数</div>
+      <div class="total-num" id="totalNum" style="color:var(--gold)">0.00</div>
+    </div>
+    <div class="total-bar-wrap">
+      <div id="judgeBadge" class="judge-badge" style="font-size:12px">―</div>
+      <div class="total-bar"><div class="total-fill" id="totalBar" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3)"><span>0</span><span>50</span><span>100</span></div>
+    </div>
+  </div>
+
+  <button class="apply-btn" onclick="applyCheck()">✓ この馬に反映して次へ</button>
+  <div id="checkSections"></div>
+  <button class="clear-btn" onclick="clearHorse()">この馬のチェックをクリア</button>
+</div>
+
+<div class="page" id="page-list">
+  <div class="section-hdr">馬一覧 — 指数を直接編集</div>
+  <div id="horseList"></div>
+  <button class="clear-btn" onclick="clearAll()">全馬データをリセット</button>
+</div>
+
+<div class="page" id="page-result">
+  <div class="metric-grid" id="metricGrid"></div>
+  <div class="chart-card">
+    <div class="chart-title">総合指数ランキング</div>
+    <div style="position:relative;width:100%;height:300px">
+      <canvas id="rankChart" role="img" aria-label="各馬の総合指数棒グラフ"></canvas>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">上位3頭 — 指数内訳</div>
+    <div style="position:relative;width:100%;height:260px">
+      <canvas id="radarChart" role="img" aria-label="上位3頭レーダーチャート"></canvas>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">予想順位</div>
+    <div id="rankTable"></div>
+  </div>
+</div>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav">
+  <button class="nav-btn active" id="nav-check" onclick="showPage('check')">
+    <svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    チェック
+  </button>
+  <button class="nav-btn" id="nav-list" onclick="showPage('list')">
+    <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    一覧
+  </button>
+  <button class="nav-btn" id="nav-result" onclick="showPage('result');renderResult()">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    結果
+  </button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const WEIGHTS = [0.40,0.25,0.15,0.10,0.05,0.05];
+const IDX_LABELS = ['タイム','近走','距離','馬場','騎手','斤量'];
+const SECTIONS = [
+  {title:'① タイム指数',color:'#4a8fff',items:[
+    ['前走が上位3着以内だった',30,'直近の好走実績'],
+    ['2走前も上位3着以内だった',20,'連続好走で信頼度UP'],
+    ['重賞での馬券内実績あり',20,'GⅠ〜GⅢ問わず'],
+    ['今回と同条件で好走歴あり',15,'同距離・同コース'],
+    ['上がり3ハロン上位3位以内の実績',15,'末脚の信頼性'],
+  ]},
+  {title:'② 近走指数',color:'#3dcc7e',items:[
+    ['直近3走が右肩上がり',35,'例：5→3→1着'],
+    ['前走が0.3秒差以内の惜敗',25,'0.5秒差以上は△'],
+    ['3〜8週の適度な間隔',20,'休養明け初戦は減点'],
+    ['体重増減±4kg以内',10,'急激な変化なし'],
+    ['前走で先行できていた',10,'展開利が出やすい'],
+  ]},
+  {title:'③ 距離適性',color:'#9b7aff',items:[
+    ['今回距離での勝利実績あり',40,'同距離勝利は最高評価'],
+    ['今回距離で複数回の馬券内',25,'2回以上で信頼度高'],
+    ['±200m以内の距離経験あり',20,'近い距離でOK'],
+    ['血統的に距離適性がある',10,'父・母父で判断'],
+    ['今回距離で大敗歴なし',5,'不安材料なし'],
+  ]},
+  {title:'④ 馬場適性',color:'#f0c040',items:[
+    ['今回馬場状態で勝利実績',40,'再現性が高い'],
+    ['今回馬場状態で馬券内実績',30,'2〜3着でも評価'],
+    ['重・不良をこなせる血統',15,'ヘイルトゥリーズン系など'],
+    ['今回馬場で大敗歴なし',15,'不安材料がないだけで加点'],
+  ]},
+  {title:'⑤ 騎手指数',color:'#ff8a4a',items:[
+    ['今年の勝率10%以上',30,'ルメール・川田など'],
+    ['この馬との騎乗で馬券内実績',30,'コンビ実績は重要'],
+    ['当該コース・距離で騎手勝率高',20,'得意コースか確認'],
+    ['継続騎乗（乗り替わりでない）',20,'馬の特性を把握'],
+  ]},
+  {title:'⑥ 斤量補正',color:'#ff5a9d',items:[
+    ['52kg以下（軽量）',40,'大きなアドバンテージ'],
+    ['53〜54kg（やや軽量）',25,''],
+    ['55〜56kg（標準）',15,''],
+    ['57〜58kg（やや重量）',10,''],
+    ['59kg以上（重量）',0,'重量はそのまま0点'],
+  ]},
+];
+
+function initHorses() {
+  return Array.from({length:18},(_,i)=>({
+    num:i+1, name:'',
+    scores:[50,50,50,50,50,50],
+    checks:SECTIONS.map(s=>Array(s.items.length).fill(false))
+  }));
+}
+
+let horses = initHorses();
+let currentIdx = 0;
+let rChart = null, radChart = null;
+
+function calcTotal(h){ return h.scores.reduce((s,v,i)=>s+v*WEIGHTS[i],0); }
+function getCheckScores(h){
+  return SECTIONS.map((sec,si)=>Math.min(100,sec.items.reduce((s,item,ii)=>s+(h.checks[si][ii]?item[1]:0),0)));
+}
+function getJudge(v){
+  if(v>=80) return {label:'◎◎ 超有力',color:'#0f0f13',bg:'#f0c040'};
+  if(v>=65) return {label:'◎ 有力',color:'#fff',bg:'#4a8fff'};
+  if(v>=50) return {label:'〇 注目',color:'#fff',bg:'#3dcc7e'};
+  if(v>=35) return {label:'▲ 抑え',color:'#fff',bg:'#9090a8'};
+  return {label:'△ 消し',color:'#fff',bg:'#ff5a5a'};
+}
+
+function updateHeader(){
+  const n=document.getElementById('raceName').value;
+  const d=document.getElementById('raceDist').value;
+  const t=document.getElementById('raceTrack').value;
+  document.getElementById('headerSub').textContent=(n||'レース未設定')+(d?' '+d:'')+(t?' ('+t+')':'');
+}
+
+function showPage(p){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.getElementById('nav-'+p).classList.add('active');
+  if(p==='list') renderList();
+  if(p==='check') renderCheck();
+}
+
+function initSel(){
+  const sel=document.getElementById('checkSel');
+  sel.innerHTML=horses.map((h,i)=>`<option value="${i}">${h.num}番 ${h.name||'（未入力）'}</option>`).join('');
+  sel.value=currentIdx;
+}
+
+function renderCheck(){
+  initSel();
+  const h=horses[currentIdx];
+  const scores=getCheckScores(h);
+  const total=scores.reduce((s,v,i)=>s+v*WEIGHTS[i],0);
+  document.getElementById('totalNum').textContent=total.toFixed(2);
+  document.getElementById('totalBar').style.width=Math.min(100,total)+'%';
+  const j=getJudge(total);
+  const jb=document.getElementById('judgeBadge');
+  jb.textContent=j.label; jb.style.background=j.bg; jb.style.color=j.color;
+
+  document.getElementById('checkSections').innerHTML=SECTIONS.map((sec,si)=>{
+    const pts=scores[si];
+    const items=sec.items.map((item,ii)=>`
+      <div class="check-item" onclick="toggleCheck(${si},${ii})">
+        <div class="check-box ${h.checks[si][ii]?'on':''}" style="${h.checks[si][ii]?'background:'+sec.color:''}">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="check-text">
+          <div class="check-label">${item[0]}</div>
+          ${item[2]?`<div class="check-hint">${item[2]}</div>`:''}
+        </div>
+        <div class="check-pts">+${item[1]}</div>
+      </div>`).join('');
+    return `<div class="check-card">
+      <div class="check-card-header">
+        <div class="check-card-title" style="color:${sec.color}">${sec.title}</div>
+        <div class="check-card-score" style="color:${sec.color}">${pts}<span style="font-size:11px;color:var(--text3)">/100</span></div>
+      </div>
+      <div class="score-bar-wrap"><div class="score-bar"><div class="score-fill" style="width:${pts}%;background:${sec.color}"></div></div></div>
+      ${items}
+    </div>`;
+  }).join('');
+}
+
+function toggleCheck(si,ii){
+  horses[currentIdx].checks[si][ii]=!horses[currentIdx].checks[si][ii];
+  renderCheck();
+}
+
+function prevHorse(){ currentIdx=(currentIdx-1+horses.length)%horses.length; document.getElementById('checkSel').value=currentIdx; renderCheck(); }
+function nextHorse(){ currentIdx=(currentIdx+1)%horses.length; document.getElementById('checkSel').value=currentIdx; renderCheck(); }
+document.getElementById('checkSel').addEventListener('change',function(){ currentIdx=+this.value; renderCheck(); });
+
+function applyCheck(){
+  horses[currentIdx].scores=getCheckScores(horses[currentIdx]);
+  showToast('✓ 反映しました！');
+  nextHorse();
+}
+
+function clearHorse(){
+  horses[currentIdx].checks=SECTIONS.map(s=>Array(s.items.length).fill(false));
+  renderCheck();
+  showToast('クリアしました');
+}
+
+function clearAll(){
+  if(!confirm('全馬のデータをリセットしますか？')) return;
+  horses=initHorses(); currentIdx=0; renderList(); showToast('リセットしました');
+}
+
+function renderList(){
+  document.getElementById('horseList').innerHTML=horses.map((h,i)=>{
+    const total=calcTotal(h);
+    const j=getJudge(total);
+    return `<div class="horse-list-item">
+      <div class="hli-top">
+        <div class="hli-num">${h.num}</div>
+        <div class="hli-name" style="flex:1"><input type="text" value="${h.name}" placeholder="馬名を入力" onchange="horses[${i}].name=this.value;initSel()"></div>
+        <span class="judge-badge" style="background:${j.bg};color:${j.color};font-size:11px;padding:3px 10px">${j.label.split(' ')[0]}</span>
+        <div class="hli-total" style="color:var(--gold)">${total.toFixed(1)}</div>
+      </div>
+      <div class="hli-scores">
+        ${IDX_LABELS.map((lbl,si)=>`<div class="hli-score-item">
+          <label>${lbl}</label>
+          <input type="number" value="${h.scores[si]}" min="0" max="100" onchange="horses[${i}].scores[${si}]=+this.value;renderList()">
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderResult(){
+  const ranked=[...horses].map((h,i)=>({...h,total:calcTotal(h),oi:i})).sort((a,b)=>b.total-a.total);
+  const named=ranked.filter(h=>h.name); const disp=named.length>0?named:ranked;
+  const top=disp[0];
+  const j=top?getJudge(top.total):{label:'—',color:'#fff',bg:'#333'};
+  document.getElementById('metricGrid').innerHTML=`
+    <div class="metric-card"><div class="metric-lbl">1位馬</div><div class="metric-val" style="font-size:15px;margin-top:2px">${top?top.num+'番 '+(top.name||'—'):'—'}</div></div>
+    <div class="metric-card"><div class="metric-lbl">最高指数</div><div class="metric-val" style="color:var(--gold)">${top?top.total.toFixed(2):'—'}</div><div class="metric-sub"><span class="judge-badge" style="background:${j.bg};color:${j.color};font-size:10px;padding:2px 8px">${j.label}</span></div></div>
+    <div class="metric-card"><div class="metric-lbl">平均指数</div><div class="metric-val">${(disp.reduce((s,h)=>s+h.total,0)/disp.length).toFixed(2)}</div></div>
+    <div class="metric-card"><div class="metric-lbl">◎以上の頭数</div><div class="metric-val">${disp.filter(h=>h.total>=65).length}<span style="font-size:13px;color:var(--text2)">頭</span></div></div>
+  `;
+
+  const top8=disp.slice(0,8);
+  const barColors=top8.map((_,i)=>i===0?'#f0c040':i===1?'#9090a8':i===2?'#c07040':'#2a3a5a');
+  if(rChart) rChart.destroy();
+  rChart=new Chart(document.getElementById('rankChart'),{
+    type:'bar',
+    data:{
+      labels:top8.map(h=>`${h.num}${h.name?' '+h.name.slice(0,4):''}`),
+      datasets:[{label:'総合指数',data:top8.map(h=>+h.total.toFixed(2)),backgroundColor:barColors,borderRadius:4}]
+    },
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toFixed(2)}点`}}},
+      scales:{
+        x:{min:0,max:100,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#9090a8',font:{size:10}}},
+        y:{grid:{display:false},ticks:{color:'#ccc',font:{size:11}}}
+      }
+    }
+  });
+
+  const top3=disp.slice(0,3);
+  const rc=['rgba(240,192,64,.7)','rgba(74,143,255,.5)','rgba(61,204,126,.4)'];
+  if(radChart) radChart.destroy();
+  radChart=new Chart(document.getElementById('radarChart'),{
+    type:'radar',
+    data:{
+      labels:IDX_LABELS,
+      datasets:top3.map((h,i)=>({
+        label:`${h.num}番${h.name?' '+h.name.slice(0,4):''}`,
+        data:h.scores,
+        backgroundColor:rc[i],
+        borderColor:rc[i].replace('.7','1').replace('.5','1').replace('.4','1'),
+        borderWidth:1.5,pointRadius:3
+      }))
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:'#9090a8',font:{size:10},boxWidth:10}}},
+      scales:{r:{min:0,max:100,ticks:{color:'#5a5a72',font:{size:9},stepSize:25,backdropColor:'transparent'},grid:{color:'rgba(255,255,255,.07)'},pointLabels:{color:'#9090a8',font:{size:10}}}}
+    }
+  });
+
+  document.getElementById('rankTable').innerHTML=disp.slice(0,10).map((h,i)=>{
+    const cls=i===0?'r1':i===1?'r2':i===2?'r3':'';
+    const j2=getJudge(h.total);
+    return `<div class="rank-row">
+      <div class="rank-num ${cls}">${i+1}</div>
+      <div class="rank-name">${h.num}番 ${h.name||'（未入力）'}</div>
+      <div class="rank-score">${h.total.toFixed(2)}</div>
+      <span class="judge-badge" style="background:${j2.bg};color:${j2.color};font-size:10px;padding:2px 8px">${j2.label.split(' ')[0]}</span>
+    </div>`;
+  }).join('');
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+// Init
+initSel(); renderCheck(); renderList(); updateHeader();
+</script>
+</body>
+</html>
